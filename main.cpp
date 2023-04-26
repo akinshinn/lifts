@@ -1,28 +1,4 @@
-// Проект elevator
-// (c) И.К. Марчевский, 2021-2023
 
-/*!
-\file
-\brief Основной файл программы elevator
-\author Марчевский Илья Константинович
-\version 1.0
-\date 20 февраля 2023 г.
-*/
-
-/*!
-\mainpage Симулятор пассажирского лифта
-Данный программный комплекс реализует моделирование работы кабины пассажирского лифта и требует от студентов разработки системы управления лифтом.
-
-Задача состоит в том, чтобы как можно эффективнее (быстрее) перевезти пассажиров, появляющихся на этажах
-
-За каждого перевезенного пассажира начисляется "штраф", равный сумме времени ожидания пассажиром лифта и времени его нахождения внутри кабины. За пассажиров, так и не дождавшихся лифта, или оставшихся в лифте к моменту окончания симуляции (т.е. не доставленных на нужный этаж) начисляются большие штрафы.
-
-Требуется разработать алгоритм, при котором суммарный "штраф" будет как можно меньше!
-
-\author Марчевский Илья Константинович
-\version 1.0
-\date 20 февраля 2023 г.
-*/
 
 #include <cmath>
 #include <iostream>
@@ -56,7 +32,7 @@ const size_t numberOfFloors = maxFloor + 1;
 
 /// Время моделирования в секундах
 /// \warning Cейчас для тестирования задано 26000 секунд, в реальной задаче может быть, скажем, 54000 секунд: от 7:00 утра до 22:00 вечера
-const size_t maxTime = 3600;
+const size_t maxTime = 900;
 struct myParams
 {
     /// Некоторый произвольный параметр, инициализированный значением "0"
@@ -169,7 +145,6 @@ struct myParams
         control.AddPassengerToQueue({ 1, 5, 10, 600, 0.01, 0.20, 0.50 });
         control.AddPassengerToQueue({ 20, 6, 2, 600, 0.01, 0.20, 0.50 });
         control.AddPassengerToQueue({ 13, 4, 1, 600, 0.01, 0.20, 0.50 });
-        
         myParams params;
         do
         {
@@ -383,7 +358,7 @@ struct myParams
                 params.started = true;
             }
         }
-
+        size_t global_dest = 5;
         for (size_t elv = 0; elv < 1; ++elv)
         {
             // В данном примере новая команда (назначение) не отдается,
@@ -392,53 +367,21 @@ struct myParams
             {
                 // считываем этаж, на который лифт прибыл
                 size_t curDest = control.getElevatorDestination(elv);
-                control.SetElevatorIndicator(elv, ElevatorIndicator::both);
+                //control.SetElevatorIndicator(elv, ElevatorIndicator::both);
                 // прибывая на этаж назначения лифт открывает двери, если либо он непустой,
                 // либо на этом этаже нажата кнопка вызова хотя бы в какую-то сторону,
                 // в противном случае прибывает на этаж и стоит, не открывая двери
                 // считываем текущее положение лифта
                 size_t nextDest = (size_t)(control.getElevatorPosition(elv));
+                std::cout << params.find_current_destination(control, elv) << " " << control.getCurrentTime() << " " << control.getElevatorPosition(elv) <<  std::endl;
+                if (global_dest >= nextDest) control.SetElevatorIndicator(elv, ElevatorIndicator::up);
+                else control.SetElevatorIndicator(elv, ElevatorIndicator::down);
                 size_t global_dest = params.find_current_destination(control, elv);
-                //if (global_dest > nextDest) control.SetElevatorIndicator(elv, ElevatorIndicator::up);
-                //else control.SetElevatorIndicator(elv, ElevatorIndicator::up);
-                //switch (control.getElevatorIndicator(elv))
-                //{
-                //case ElevatorIndicator::both:
-                //case ElevatorIndicator::up:
-                //    ++nextDest;
-                //    break;
-
-                //case ElevatorIndicator::down:
-                //    --nextDest;
-                //    break;
-                //}
-
+                
                 control.SetElevatorDestination(elv, global_dest);
             }
-            //Теперь устанавливаем индикатор
-            if (control.isElevatorGoingUniformly(elv))
-            {
-                // считываем текущий индикатор движения (лифт изначально инициализирован в both)
-                ElevatorIndicator curInd = control.getElevatorIndicator(elv);
 
-                // индикатор, который будет установлен дальше, инициализируем его в текущим индикатором
-                ElevatorIndicator nextInd = curInd;
 
-                // поменяем его, если он установлен в both
-                if (curInd == ElevatorIndicator::both)
-                    nextInd = ElevatorIndicator::up;
-
-                // при прибытии на максимальный этаж - переключаем индикатор "вниз"
-                if ((control.getElevatorDestination(elv) == maxFloor) && (control.getElevatorPosition(elv) > maxFloor - 1))
-                    nextInd = ElevatorIndicator::down;
-
-                // при прибытии на миниимальный этаж (в подвал) - переключаем индикатор "вверх"
-                if ((control.getElevatorDestination(elv) == 0) && (control.getElevatorPosition(elv) < 1))
-                    nextInd = ElevatorIndicator::up;
-
-                // собственно, установка значения индикатора
-                control.SetElevatorIndicator(elv, nextInd);
-            }//if (control.isElevatorGoingUniformly(elv))
         }
 
         /*
