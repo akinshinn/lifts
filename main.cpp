@@ -83,7 +83,24 @@ struct myParams
         if (control.getElevatorButton(elev, floor)) counter--;
         if (control.getFloorDnButton(floor) + control.getFloorUpButton(floor)) counter++;
 
-        return (counter >= elevatorCapacity / 2);
+        return (counter >= elevatorCapacity);
+    }
+    size_t find_upper_dest(Control& control, size_t elv, size_t floor) {
+        std::vector<bool> u_btns = control.getFloorUpButtons();
+        std::vector<bool> elv_btns = control.getElevatorButtons(elv);
+        for (int i = floor+1; i < numberOfFloors; i++) {
+            if (u_btns[i] || elv_btns[i]) return i;
+        }
+        return floor;
+    }
+    size_t find_dnwn_dest(Control& control, size_t elv, size_t floor) {
+        std::vector<bool> d_btns = control.getFloorDnButtons();
+        std::vector<bool> elv_btns = control.getElevatorButtons(elv); std::cout << "in dwn dest\n";
+        if (control.getCurrentTime() == 138) std::cout << "CTIME = 138 " << elv_btns[1] << "\n";
+        for (int i = floor-1; i >= 0; i--) {
+            if (d_btns[i] || elv_btns[i]) return i;
+        }
+        return floor;
     }
 };
 
@@ -167,25 +184,11 @@ int main(int argc, char** argv)
     control.AddPassengerToQueue({ 13, 5, 11, 300, 0.01, 0.20, 0.50 });
     control.AddPassengerToQueue({ 14, 5, 10, 300, 0.01, 0.20, 0.50 });
     */
-    control.AddPassengerToQueue({ 1, 11, 10, 10, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 1, 11, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 1, 11, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 1, 11, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 1, 11, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 1, 11, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 1, 11, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 1, 11, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 1, 11, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 5, 4, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 5, 4, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 5, 4, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 5, 4, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 5, 4, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 5, 4, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 5, 4, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 1, 5, 4, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 20, 6, 2, 600, 0.01, 0.20, 0.50 });
-    control.AddPassengerToQueue({ 13, 4, 1, 600, 0.01, 0.20, 0.50 });
+    control.AddPassengerToQueue({ 1, 1, 5, 600, 0.01, 0.20, 0.50 });
+    control.AddPassengerToQueue({ 4, 2, 6, 600, 0.01, 0.20, 0.50 });
+    control.AddPassengerToQueue({ 1, 3, 1, 600, 0.01, 0.20, 0.50 });
+
+    
     myParams params;
     do
     {
@@ -407,26 +410,43 @@ void CONTROLSYSTEM(Control& control, myParams& params)
         if ((params.started) && (control.isElevatorAchievedDestination(elv)))
         {
             // считываем этаж, на который лифт прибыл
-            control.unsetDnButton(control.getElevatorPosition(elv));
-            control.unsetUpButton(control.getElevatorPosition(elv));
-            size_t curDest = control.getElevatorDestination(elv);
+
             //control.SetElevatorIndicator(elv, ElevatorIndicator::both);
             // прибывая на этаж назначения лифт открывает двери, если либо он непустой,
             // либо на этом этаже нажата кнопка вызова хотя бы в какую-то сторону,
             // в противном случае прибывает на этаж и стоит, не открывая двери
             // считываем текущее положение лифта
-            size_t nextDest = (size_t)(control.getElevatorPosition(elv));
-            size_t global_dest = 5;
-            if (params.is_elevator_full(control, elv, nextDest))
+            size_t pos = (size_t)(control.getElevatorPosition(elv));
+            control.unsetDnButton(pos);
+            control.unsetUpButton(pos);
+            size_t global_dest;
+            if (!(params.is_elevator_full(control, elv, pos))) {
+                if (control.getElevatorIndicator(elv) == ElevatorIndicator::up || control.getElevatorIndicator(elv) == ElevatorIndicator::both) {
+                    global_dest = params.find_upper_dest(control, elv, pos);
+                    if (global_dest == pos && params.find_dnwn_dest(control, elv, pos) != pos ) control.SetElevatorIndicator(elv, ElevatorIndicator::down);
+                }
+                else {
+                    global_dest = params.find_dnwn_dest(control, elv, pos);
+                    if (global_dest == pos && params.find_upper_dest(control, elv, pos) != pos) control.SetElevatorIndicator(elv, ElevatorIndicator::up);
+                }
+            }
+            else {
                 global_dest = params.find_current_destination_elv_btn(control, elv);
-            else global_dest = params.find_current_destination(control, elv);
+                if (global_dest > pos) control.SetElevatorIndicator(elv, ElevatorIndicator::up);
+                else if (global_dest == pos) control.SetElevatorIndicator(elv, ElevatorIndicator::both);
+                else  control.SetElevatorIndicator(elv, ElevatorIndicator::down);
 
-            std::cout << params.find_current_destination(control, elv) << " " << control.getCurrentTime() << " " << control.getElevatorPosition(elv) << std::endl;
+            }
+            //if (params.is_elevator_full(control, elv, nextDest))
+            //    global_dest = params.find_current_destination_elv_btn(control, elv);
+            //else global_dest = params.find_current_destination(control, elv);
 
-            if (global_dest > nextDest) control.SetElevatorIndicator(elv, ElevatorIndicator::up);
+            //std::cout << params.find_current_destination(control, elv) << " " << control.getCurrentTime() << " " << control.getElevatorPosition(elv) << std::endl;
 
-            else control.SetElevatorIndicator(elv, ElevatorIndicator::down);
+            //if (global_dest > nextDest) control.SetElevatorIndicator(elv, ElevatorIndicator::up);
 
+            //else control.SetElevatorIndicator(elv, ElevatorIndicator::down);
+            std::cout << "time = " << control.getCurrentTime() << " dest = " << global_dest << "\n";
 
             control.SetElevatorDestination(elv, global_dest);
         }
