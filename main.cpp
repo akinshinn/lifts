@@ -30,7 +30,7 @@ const size_t numberOfFloors = maxFloor + 1;
 
 /// Время моделирования в секундах
 /// \warning Cейчас для тестирования задано 26000 секунд, в реальной задаче может быть, скажем, 54000 секунд: от 7:00 утра до 22:00 вечера
-const size_t maxTime = 900;
+const size_t maxTime = 6000;
 struct myParams
 {
     /// Некоторый произвольный параметр, инициализированный значением "0"
@@ -95,8 +95,7 @@ struct myParams
     }
     size_t find_dnwn_dest(Control& control, size_t elv, size_t floor) {
         std::vector<bool> d_btns = control.getFloorDnButtons();
-        std::vector<bool> elv_btns = control.getElevatorButtons(elv); std::cout << "in dwn dest\n";
-        if (control.getCurrentTime() == 138) std::cout << "CTIME = 138 " << elv_btns[1] << "\n";
+        std::vector<bool> elv_btns = control.getElevatorButtons(elv);
         for (int i = floor-1; i >= 0; i--) {
             if (d_btns[i] || elv_btns[i]) return i;
         }
@@ -157,7 +156,7 @@ int main(int argc, char** argv)
     //Задание конфигурации лифтового хозяйства
     Control control(numberOfFloors, numberOfElevators, elevatorCapacity);
     //Для загрузки расписания появления пассажиров из файла
-    //control.ReadTimeTable("TimeTable/timetable500a.csv");
+    //control.ReadTimeTable("TimeTable/timetable125.csv");
     //std::cout << "main";
 
     //Для тестирования вместо чтения из файла (строка выше)
@@ -387,10 +386,22 @@ void CONTROLSYSTEM(Control& control, myParams& params)
 
     if (control.getCurrentTime() == 1)
     {
-        control.SetElevatorDestination(1, maxFloor);
-        control.SetElevatorIndicator(1, ElevatorIndicator::up); // поменял на both(up)
-    }
+        if (numberOfElevators % 2 == 0) {
+            for (int i = 0; i < numberOfElevators / 2; i++) {
+                control.SetElevatorDestination(i, maxFloor);
+                control.SetElevatorIndicator(i, ElevatorIndicator::up);
+            }
+        }
+        else {
+            control.SetElevatorDestination(numberOfElevators / 2, numberOfFloors / 2);
+            control.SetElevatorIndicator(numberOfElevators / 2, ElevatorIndicator::up);
+            for (int i = 0; i < numberOfElevators / 2; i++) {
+                control.SetElevatorDestination(i, maxFloor);
+                control.SetElevatorIndicator(i, ElevatorIndicator::up);
+            }
 
+        }
+    }
     if (!params.started)
     {
         size_t nUp = std::count(control.getFloorUpButtons().begin(), control.getFloorUpButtons().end(), true);
@@ -402,9 +413,11 @@ void CONTROLSYSTEM(Control& control, myParams& params)
             params.started = true;
         }
     }
+
     // size_t global_dest = 5;
-    for (size_t elv = 0; elv < 1; ++elv)
+    for (size_t elv = 0; elv < numberOfElevators; ++elv)
     {
+
         // В данном примере новая команда (назначение) не отдается,
         // пока не выполнена предыдущая
         if ((params.started) && (control.isElevatorAchievedDestination(elv)))
@@ -446,7 +459,6 @@ void CONTROLSYSTEM(Control& control, myParams& params)
             //if (global_dest > nextDest) control.SetElevatorIndicator(elv, ElevatorIndicator::up);
 
             //else control.SetElevatorIndicator(elv, ElevatorIndicator::down);
-            std::cout << "time = " << control.getCurrentTime() << " dest = " << global_dest << "\n";
 
             control.SetElevatorDestination(elv, global_dest);
         }
