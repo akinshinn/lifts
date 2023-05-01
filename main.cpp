@@ -2,7 +2,6 @@
 #include <iostream>
 #include <list>
 #include <map>
-
 #include "Control.h"
 
 const size_t numberOfElevators = 2;
@@ -22,7 +21,6 @@ struct myParams
     size_t* time_table = new size_t[numberOfFloors];
     size_t* time_elv_full = new size_t[numberOfElevators];
     bool* list_elv_full = new bool[numberOfElevators];
-
         
     ~myParams() {
         delete[] time_table, time_elv_full, list_elv_full;
@@ -38,6 +36,7 @@ struct myParams
         
         for (int i = 0; i < numberOfFloors; ++i) {
             time_table[i] = 0;
+            
         }
 
     }
@@ -65,12 +64,15 @@ struct myParams
         // аргументы функции приоритета
         size_t distance = abs(control.getElevatorPosition(elv) - floor);
         size_t time_exceed = time_table[floor];
-        bool Indicator = (control.getElevatorIndicator(elv) != ElevatorIndicator::down);
+        ElevatorIndicator c_indi = control.getElevatorIndicator(elv);
+        bool Indicator = 0;
+        if ((floor > control.getElevatorPosition(elv) && c_indi == ElevatorIndicator::up) || (floor < control.getElevatorPosition(elv) \
+            && c_indi == ElevatorIndicator::down)) Indicator = 1;
         int departure = 0;
         // если лифт заполнен и нажата кнопка в самом лифте
         if (is_elevator_full(control, elv, floor) && control.getElevatorButton(elv, floor)) departure = 1;
 
-        double pr = 1000 * departure + 1 * Indicator + 40 * time_exceed + 75 * distance; // min = 69429
+        double pr = 1000 * departure + 40 * Indicator + 40 * time_exceed + 75 * distance; // min = 44000
 
         return pr;
     }
@@ -103,7 +105,6 @@ struct myParams
                 index = i;
             }
         }
-
         return index;
     }
     
@@ -319,7 +320,7 @@ void CONTROLSYSTEM(Control& control, myParams& params)
     }
 
     params.floorbutton_time_increment(control);
-
+     
 
         /* когда-нибудь оно заработает
         params.is_elevator_full(control, elv);
