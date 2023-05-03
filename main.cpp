@@ -21,27 +21,29 @@ struct myParams
     size_t* time_table = new size_t[numberOfFloors];
     size_t* time_elv_full = new size_t[numberOfElevators];
     bool* list_elv_full = new bool[numberOfElevators];
-        
+    int* elv_per_floor = new int[numberOfFloors];
+    double* max_priority_per_floor = new double [numberOfFloors] ;
     ~myParams() {
-        delete[] time_table, time_elv_full, list_elv_full;
+        delete[] time_table, time_elv_full, list_elv_full, elv_per_floor;
     }
 
 
     void init_params() {
 
         for (int i = 0; i < numberOfElevators; ++i) {
-             time_elv_full[i] = 0;
-             list_elv_full[i] = false;
+            time_elv_full[i] = 0;
+            list_elv_full[i] = false;
         }
-        
+
         for (int i = 0; i < numberOfFloors; ++i) {
             time_table[i] = 0;
-            
+            elv_per_floor[i] = -1;
+
         }
 
     }
 
-    void floorbutton_time_increment(Control &control) {
+    void floorbutton_time_increment(Control& control) {
         for (int i = 0; i < numberOfFloors; ++i) {
             time_table[i] += control.getFloorDnButton(i) + control.getFloorUpButton(i);
         }
@@ -62,7 +64,10 @@ struct myParams
 
     double get_priority(Control& control, size_t elv, size_t floor) {
         // аргументы функции приоритета
+        int b1 = control.getElevatorButton(elv, floor) + control.getFloorDnButton(floor) + control.getFloorUpButton(floor);
+        if (floor == control.getElevatorPosition(elv) || b1 == 0) return 0;
         size_t distance = abs(control.getElevatorPosition(elv) - floor);
+        distance = 1 / distance;
         size_t time_exceed = time_table[floor];
         ElevatorIndicator c_indi = control.getElevatorIndicator(elv);
         bool Indicator = 0;
@@ -72,7 +77,7 @@ struct myParams
         // если лифт заполнен и нажата кнопка в самом лифте
         if (is_elevator_full(control, elv, floor) && control.getElevatorButton(elv, floor)) departure = 1;
 
-        double pr = 1000 * departure + 40 * Indicator + 40 * time_exceed + 75 * distance; // min = 44000
+        double pr = 1000 * departure + 40 * Indicator + 40 * time_exceed + 75 * distance; // min = 47693
 
         return pr;
     }
@@ -90,15 +95,24 @@ struct myParams
         }
         ~Elevator_priorities() { delete[] elv_priorities; };
 
-        
+
     };
     */
 
-    size_t get_target(Control& control, size_t elv) {
+    size_t get_target(Control& control, size_t elv, bool is_achieved_floor) {
         size_t index = 0;
         size_t max = 0;
-        for (size_t i = 0; i < numberOfFloors; ++i) {
-            
+        size_t start = 0, end = numberOfFloors;
+        if (!is_achieved_floor) {
+            if (control.getElevatorIndicator(elv) == ElevatorIndicator::up) {
+                start = (int)control.getElevatorPosition(elv) + 1;
+            }
+            else {
+                end = (int)control.getElevatorPosition(elv) + 1;
+            }
+        }
+        for (size_t i = start; i < end; ++i) {
+
             double tmp = get_priority(control, elv, i);
             if (tmp > max) {
                 max = tmp;
@@ -107,7 +121,7 @@ struct myParams
         }
         return index;
     }
-    
+
     size_t find_current_destination(Control& control, int elv) {
         double pos = control.getElevatorPosition(elv);
         int min = 1000;
@@ -170,15 +184,14 @@ struct myParams
         }
         return floor;
     }
-   
-    
-    
+
+
     /*void is_elevator_full(Control& control, size_t elv) {
 
         if (time_elv_full[elv] == 0 && control.isElevatorDoorsClosing(elv)) {
             time_elv_full[elv] = control.getCurrentTime() + control.timeClosing + 3;
         }
-    } 
+    }
     */
 };
 
@@ -190,17 +203,7 @@ int main(int argc, char** argv)
     Control control(numberOfFloors, numberOfElevators, elevatorCapacity);
     control.ReadTimeTable("TimeTable/timetable125.csv");
 
-    //control.AddPassengerToQueue({  5, 5,  3, 300, 0.01, 0.20, 0.50 });
-    //control.AddPassengerToQueue({  6, 5, 10, 300, 0.01, 0.20, 0.50 });
-    //control.AddPassengerToQueue({  7, 5,  2, 300, 0.01, 0.20, 0.50 });
-    //control.AddPassengerToQueue({  8, 5,  8, 300, 0.01, 0.20, 0.50 });
-    //control.AddPassengerToQueue({  9, 5, 10, 300, 0.01, 0.20, 0.50 });
-    //control.AddPassengerToQueue({ 10, 5,  6, 300, 0.01, 0.20, 0.50 });
-    //control.AddPassengerToQueue({ 11, 5,  9, 300, 0.01, 0.20, 0.50 });
-    //control.AddPassengerToQueue({ 12, 5,  8, 300, 0.01, 0.20, 0.50 });
-    //control.AddPassengerToQueue({ 13, 5, 11, 300, 0.01, 0.20, 0.50 });
-    //control.AddPassengerToQueue({ 14, 5, 10, 300, 0.01, 0.20, 0.50 });
-    
+
 
     myParams params;
     do
@@ -228,28 +231,16 @@ int main(int argc, char** argv)
     return 0;
 }
 
-void CONTROLSYSTEM(Control& control, myParams& params) 
+void CONTROLSYSTEM(Control& control, myParams& params)
 {
     if (control.getCurrentTime() == 1)
     {
         params.init_params();
-       
 
-        if (numberOfElevators % 2 == 0) {
-            for (int i = 0; i < numberOfElevators / 2; i++) {
-                control.SetElevatorDestination(i, maxFloor);
-                control.SetElevatorIndicator(i, ElevatorIndicator::up);
-            }
-        }
-        else {
-            control.SetElevatorDestination(numberOfElevators / 2, numberOfFloors / 2);
-            control.SetElevatorIndicator(numberOfElevators / 2, ElevatorIndicator::up);
-            for (int i = 0; i < numberOfElevators / 2; i++) {
-                control.SetElevatorDestination(i, maxFloor);
-                control.SetElevatorIndicator(i, ElevatorIndicator::up);
-            }
-
-        }
+        int step = numberOfFloors / numberOfElevators;
+        for (int i = 0; i < numberOfElevators; i++) {
+            control.SetElevatorDestination(i, i * step);
+    }
     }
     if (!params.started)
     {
@@ -264,20 +255,31 @@ void CONTROLSYSTEM(Control& control, myParams& params)
     }
 
     for (size_t elv = 0; elv < numberOfElevators; ++elv) {
-       
+        size_t global_dest = params.get_target(control, elv, control.isElevatorAchievedDestination(elv));
+        double pos = control.getElevatorPosition(elv);
+        //int b1 = control.getElevatorButton(elv, 0) + control.getFloorDnButton(0) + control.getFloorUpButton(0);
+        if (pos != (int)pos) {
+            if (global_dest == 0 && control.getElevatorIndicator(elv) == ElevatorIndicator::up) {
+                control.SetElevatorIndicator(elv, ElevatorIndicator::down);
+            }
+            else if (global_dest == 0 && control.getElevatorIndicator(elv) == ElevatorIndicator::down) {
+                int b1 = control.getElevatorButton(elv, 0) + control.getFloorDnButton(0) + control.getFloorUpButton(0);
+                if (b1 == 0) {
+                    control.SetElevatorIndicator(elv, ElevatorIndicator::up);
+                }
+            }
+        }
+
         if ((params.started) && (control.isElevatorAchievedDestination(elv))) {
-     
+
             params.floorbutton_time_reset(control, elv);
             //for (int i = 0; i < numberOfFloors; ++i) {
             //    std::cout << params.time_table[i] << " ";
             //}
             //std::cout << std::endl;
 
-            size_t pos = (size_t)(control.getElevatorPosition(elv));
             control.unsetDnButton(pos);
             control.unsetUpButton(pos);
-            size_t global_dest;
-            global_dest = params.get_target(control, elv);
 
             if (global_dest > pos) {
                 control.SetElevatorIndicator(elv, ElevatorIndicator::up);
@@ -312,41 +314,42 @@ void CONTROLSYSTEM(Control& control, myParams& params)
             }
             */
 
-            control.SetElevatorDestination(elv, global_dest);
         }
+        control.SetElevatorDestination(elv, global_dest);
+
         params.floorbutton_time_increment_elevator(control, elv);
 
 
     }
 
     params.floorbutton_time_increment(control);
-     
-
-        /* когда-нибудь оно заработает
-        params.is_elevator_full(control, elv);
-
-        if (params.time_elv_full[elv] == control.getCurrentTime()) {
-
-            int nearest_floor = round((control.getElevatorPosition(elv)));
-            std::cout << std::endl << "nearest floor: " << nearest_floor << std::endl << "current pos: " << \
-                control.getElevatorPosition(elv) << std::endl;
 
 
-            if ((control.getFloorUpButton(nearest_floor)) || (control.getFloorDnButton(nearest_floor))) { 
+    /* когда-нибудь оно заработает
+    params.is_elevator_full(control, elv);
 
-                std::cout << "somtegin" << "; " << control.getCurrentTime() << "second" << std::endl;
-            
-                params.list_elv_full[elv] = true;
-                params.time_elv_full[elv] = 0;
-            }
+    if (params.time_elv_full[elv] == control.getCurrentTime()) {
+
+        int nearest_floor = round((control.getElevatorPosition(elv)));
+        std::cout << std::endl << "nearest floor: " << nearest_floor << std::endl << "current pos: " << \
+            control.getElevatorPosition(elv) << std::endl;
+
+
+        if ((control.getFloorUpButton(nearest_floor)) || (control.getFloorDnButton(nearest_floor))) {
+
+            std::cout << "somtegin" << "; " << control.getCurrentTime() << "second" << std::endl;
+
+            params.list_elv_full[elv] = true;
+            params.time_elv_full[elv] = 0;
         }
     }
-    */
+}
+*/
 
-    /*
-     if (control.getCurrentTime() < 5)
-         control.SetElevatorDestination(1, 2);
-     else
-         control.SetElevatorDestination(1, 0);
-    */ 
+/*
+ if (control.getCurrentTime() < 5)
+     control.SetElevatorDestination(1, 2);
+ else
+     control.SetElevatorDestination(1, 0);
+*/
 }
