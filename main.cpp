@@ -19,8 +19,8 @@ const size_t maxFloor = 11;
 
 const size_t numberOfFloors = maxFloor + 1;
 
-const size_t maxTime = 6000;
-int m, n, k;
+const size_t maxTime =300;
+int m = 40, n = 50, k = 300;
 struct myParams
 {
     Control* control = nullptr;
@@ -45,11 +45,15 @@ struct myParams
     }
 
 
-    bool get_indicator(size_t floor, size_t elv) {
-        return ((floor > control->getElevatorPosition(elv) && control->getElevatorIndicator(elv) == ElevatorIndicator::up) \
-            || (floor < control->getElevatorPosition(elv) && control->getElevatorIndicator(elv) == ElevatorIndicator::down));
-    }
+    //bool get_indicator(size_t floor, size_t elv) {
+    //    return ((floor > control->getElevatorPosition(elv) && control->getElevatorIndicator(elv) == ElevatorIndicator::up) \
+    //        || (floor < control->getElevatorPosition(elv) && control->getElevatorIndicator(elv) == ElevatorIndicator::down));
+    //}
 
+
+    bool get_indicator(size_t floor, size_t elv) {
+        int c_up, c_dn = 0;
+    }
 
     void time_exceed_increment(size_t elv) {
         for (size_t floor = 0; floor < numberOfFloors; floor++) {
@@ -62,24 +66,43 @@ struct myParams
     double calc_priority_floor(size_t floor, size_t elv) {
         int is_btns_pressed = control->getFloorDnButton(floor) + control->getFloorUpButton(floor) \
             + control->getElevatorButton(elv, floor);
-        if (is_btns_pressed == 0 || floor == control->getElevatorPosition(elv) == floor) return -1;
+        if (is_btns_pressed == 0 || floor == control->getElevatorPosition(elv)) return -1;
         bool indicator = get_indicator(floor, elv), full = (is_elv_full_v1(elv, floor) || is_elvs_fulled[elv]);
         size_t distance = 1 / abs(control->getElevatorPosition(elv) - floor), time_exceed = time_exceed_btns_per_floors[floor];
-        double a1 = 10000, a2 = 40, a3 = 40, a4 = 300;
+        double a1 = 10000, a2 = m, a3 = n, a4 = k;
         return a1 * full + a2 * indicator + a3 * time_exceed + a4 * distance;
     }
 
 
-    size_t get_next_dest(size_t elv) {
-        size_t max_priority = 0, dest_floor = 0, c_priority;
-        for (size_t floor = 0; floor < numberOfFloors; floor++) {
+    size_t get_next_dest(size_t elv, bool is_staying) {
+        double max_priority = -100, dest_floor = 0, c_priority;
+        size_t start = 0;
+        size_t end = numberOfFloors;
+        double pos = control->getElevatorPosition(elv);
+        if (!is_staying) {
+            if (control->getElevatorIndicator(elv) == ElevatorIndicator::up)
+            {
+                if ((int)pos == pos) start = pos;
+                else start = pos + 1;
+            }
+            else 
+            {
+                if ((int)pos == pos) end = pos;
+                else end = (int) pos + 1;
+            }
+        }
+        for (size_t floor = start; floor < end; floor++) {
             c_priority = calc_priority_floor(floor, elv);
+
+            std::cout << "\tfloor = " << floor << " priority = " << c_priority << "\n";
+
+            
             if (c_priority > max_priority) {
                 max_priority = c_priority;
                 dest_floor = floor;
             }
+            //std::cout << max_priority << "\n";
         }
-
         if (dest_floor > control->getElevatorPosition(elv)) control->SetElevatorIndicator(elv, ElevatorIndicator::up);
         else control->SetElevatorIndicator(elv, ElevatorIndicator::down);
 
@@ -119,9 +142,11 @@ void CONTROLSYSTEM(Control& control, myParams& params);
 int main(int argc, char** argv)
 {
     Control control(numberOfFloors, numberOfElevators, elevatorCapacity);
-    control.ReadTimeTable("TimeTable/timetable125.csv");
+    //control.ReadTimeTable("TimeTable/timetable125.csv");
    
-
+    control.AddPassengerToQueue({ 10, 10, 3, 600, 0,0,0 });
+    control.AddPassengerToQueue({ 15, 7, 11, 600, 0,0,0 });
+    //control.AddPassengerToQueue({ 5, 5, 3, 300, 0.01, 0.20, 0.50 });
     myParams params;
     do
     {
@@ -142,7 +167,20 @@ int main(int argc, char** argv)
 
     return 0;
 }
-
+//int main() {
+//    for (int m0 = 1; m0 < 300; m0 += 50) {
+//        for (int n0 = 1; n0 < 300; n0 += 50) {
+//            for (int k0 = 1; k0 < 500; k0 += 50) {
+//                m = m0;
+//                n = n0;
+//                k = k0;
+//                main_(0, 0);
+//            }
+//        }
+//    }
+//    return 0;
+//
+//}
 
 void CONTROLSYSTEM(Control& control, myParams& params)
 {
@@ -165,7 +203,7 @@ void CONTROLSYSTEM(Control& control, myParams& params)
         }
     }
 
-    for (size_t elv = 0; elv < numberOfElevators; ++elv)
+    for (size_t elv = 0; elv < 1; ++elv)
     {
         params.time_exceed_increment(elv);
 
@@ -175,20 +213,23 @@ void CONTROLSYSTEM(Control& control, myParams& params)
             if (control.getCurrentTime() == time_to_check \
                 && (control.getFloorDnButton(last_floor) + control.getFloorUpButton(last_floor)) > 0) params.is_elvs_fulled[elv] = true;
         }
+        size_t global_dest = params.get_next_dest(elv, control.isElevatorStaying(elv));
 
         if ((params.started) && (control.isElevatorAchievedDestination(elv)))
         {
-
+            control.SetElevatorIndicator(elv, ElevatorIndicator::both);
             size_t pos = control.getElevatorPosition(elv);
             if (((control.getFloorDnButton(pos) || control.getFloorUpButton(pos)) - control.getElevatorButton(elv, pos)) \
                 < 0) params.is_elvs_fulled[elv] = false;
+
             control.unsetDnButton(pos);
             control.unsetUpButton(pos);
-            size_t global_dest = params.get_next_dest(elv);
             params.time_exceed_btns_per_floors[pos] = 0;
 
-            control.SetElevatorDestination(elv, global_dest);
         }
+        control.SetElevatorDestination(elv, global_dest);
+        std::cout << control.getCurrentTime() << " " << control.getElevatorDestination(elv) << "\n";
+
 
     }
 }
